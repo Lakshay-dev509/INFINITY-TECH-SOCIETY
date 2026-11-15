@@ -3,3 +3,4 @@ plotly>=5.0
 pillow>=10.0
 python-dotenv>=1.0
 google-genai
+mssql-python
