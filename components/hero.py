@@ -1,0 +1,1 @@
+"""Reusable hero section components."""
