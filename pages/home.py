@@ -75,6 +75,7 @@ def render_home() -> None:
                 event_date = "Date to be announced"
 
             EVENTS.append({
+                "id": event.get("EventID"),
                 "name": event.get("Title") or "Untitled Event",
                 "category": category,
                 "tag": category.upper(),

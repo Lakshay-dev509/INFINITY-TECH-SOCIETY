@@ -23,81 +23,80 @@ def register_for_event(name, email, phone, event_id):
         }
 
     connection = None
-    cursor = None
 
     try:
         connection = get_connection()
-        cursor = connection.cursor()
 
-        # Check whether the event exists and is published
-        cursor.execute(
-            """
-            SELECT EventID
-            FROM dbo.Events
-            WHERE EventID = ? AND Status = 'Published'
-            """,
-            (event_id,)
-        )
+        with connection.cursor() as cursor:
 
-        if not cursor.fetchone():
-            return {
-                "success": False,
-                "message": "This event is not available for registration."
-            }
-
-        # Find existing user by email
-        cursor.execute(
-            """
-            SELECT UserID
-            FROM dbo.Users
-            WHERE Email = ?
-            """,
-            (email,)
-        )
-
-        user = cursor.fetchone()
-
-        if user:
-            user_id = user[0]
-
-        else:
-            # Create new user
+            # Check published event
             cursor.execute(
-            """
-            INSERT INTO dbo.Users (FullName, Email, Phone)
-            OUTPUT INSERTED.UserID
-            VALUES (?, ?, ?)
-            """,
-            (name, email, phone)
-        )
+                """
+                SELECT eventid
+                FROM events
+                WHERE eventid = %s AND status = 'Published'
+                """,
+                (event_id,)
+            )
 
-        user_id = cursor.fetchone()[0]
+            if not cursor.fetchone():
+                return {
+                    "success": False,
+                    "message": "This event is not available for registration."
+                }
 
-        # Prevent duplicate registration
-        cursor.execute(
-            """
-            SELECT RegistrationID
-            FROM dbo.Registrations
-            WHERE UserID = ? AND EventID = ?
-            """,
-            (user_id, event_id)
-        )
+            # Find existing user
+            cursor.execute(
+                """
+                SELECT userid
+                FROM users
+                WHERE email = %s
+                """,
+                (email,)
+            )
 
-        if cursor.fetchone():
-            connection.rollback()
-            return {
-                "success": False,
-                "message": "You have already registered for this event."
-            }
+            user = cursor.fetchone()
 
-        # Save registration
-        cursor.execute(
-            """
-            INSERT INTO dbo.Registrations (UserID, EventID)
-            VALUES (?, ?)
-            """,
-            (user_id, event_id)
-        )
+            if user:
+                user_id = user[0]
+
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO users (fullname, email, phone)
+                    VALUES (%s, %s, %s)
+                    RETURNING userid
+                    """,
+                    (name, email, phone)
+                )
+
+                user_id = cursor.fetchone()[0]
+
+            # Prevent duplicate registration
+            cursor.execute(
+                """
+                SELECT registrationid
+                FROM registrations
+                WHERE userid = %s AND eventid = %s
+                """,
+                (user_id, event_id)
+            )
+
+            if cursor.fetchone():
+                connection.rollback()
+                return {
+                    "success": False,
+                    "message": "You have already registered for this event."
+                }
+
+            # Save registration
+            cursor.execute(
+                """
+                INSERT INTO registrations (userid, eventid)
+                VALUES (%s, %s)
+                """,
+                (user_id, event_id)
+            )
 
         connection.commit()
 
@@ -118,8 +117,5 @@ def register_for_event(name, email, phone, event_id):
         }
 
     finally:
-        if cursor:
-            cursor.close()
-
         if connection:
             connection.close()

@@ -1,30 +1,37 @@
-"""Database connection and initialization functions will live here."""
+
+"""Neon PostgreSQL database connection and operations."""
 
 import os
-import mssql_python
+import psycopg
 from dotenv import load_dotenv
 
 load_dotenv()
 
-CONNECTION_STRING = os.getenv("SQL_CONNECTION_STRING")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 def get_connection():
-    if not CONNECTION_STRING:
-        raise RuntimeError("SQL connection string missing in .env")
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL missing in .env")
 
-    return mssql_python.connect(CONNECTION_STRING)
+    return psycopg.connect(
+        DATABASE_URL,
+        connect_timeout=15,
+        sslmode="require"
+    )
 
 
 def test_connection():
+    """Test the PostgreSQL connection."""
+
     connection = None
 
     try:
         connection = get_connection()
-        cursor = connection.cursor()
 
-        cursor.execute("SELECT DB_NAME(), SUSER_SNAME()")
-        result = cursor.fetchone()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT current_database(), current_user")
+            result = cursor.fetchone()
 
         return {
             "success": True,
@@ -44,20 +51,22 @@ def test_connection():
 
 
 def save_contact_message(name, email, subject, message):
+    """Save a contact form message in PostgreSQL."""
+
     connection = None
 
     try:
         connection = get_connection()
-        cursor = connection.cursor()
 
-        cursor.execute(
-            """
-            INSERT INTO ContactMessages
-            (FullName, Email, Subject, Message)
-            VALUES (?, ?, ?, ?)
-            """,
-            (name, email, subject, message)
-        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO contactmessages
+                (fullname, email, subject, message)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (name, email, subject, message)
+            )
 
         connection.commit()
         return True
@@ -65,6 +74,7 @@ def save_contact_message(name, email, subject, message):
     except Exception as error:
         if connection:
             connection.rollback()
+
         print("Database error:", error)
         return False
 
@@ -74,20 +84,24 @@ def save_contact_message(name, email, subject, message):
 
 
 def get_events():
+    """Retrieve events from PostgreSQL."""
+
     connection = None
 
     try:
         connection = get_connection()
-        cursor = connection.cursor()
 
-        cursor.execute("""
-            SELECT EventID, EventName, Description,
-                   Category, EventDate, Venue, ImagePath, Status
-            FROM Events
-            ORDER BY EventDate DESC
-        """)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT eventid, eventname, description,
+                       category, eventdate, venue, imagepath, status
+                FROM events
+                ORDER BY eventdate DESC
+                """
+            )
 
-        return cursor.fetchall()
+            return cursor.fetchall()
 
     except Exception as error:
         print("Event retrieval error:", error)
@@ -96,4 +110,3 @@ def get_events():
     finally:
         if connection:
             connection.close()
-

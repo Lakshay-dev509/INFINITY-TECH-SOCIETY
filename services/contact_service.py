@@ -1,13 +1,11 @@
-"""Contact form processing placeholder."""
+
+"""Contact form processing for INFINITY using Neon PostgreSQL."""
 
 from services.database import get_connection
 
 
 def submit_contact_message(name, email, subject, message):
-    """
-    Validate and save a contact form message
-    into the INFINITY SQL Server database.
-    """
+    """Validate and save a contact form message into Neon PostgreSQL."""
 
     name = (name or "").strip()
     email = (email or "").strip()
@@ -31,16 +29,16 @@ def submit_contact_message(name, email, subject, message):
 
     try:
         connection = get_connection()
-        cursor = connection.cursor()
 
-        cursor.execute(
-            """
-            INSERT INTO ContactMessages
-            (FullName, Email, Subject, Message)
-            VALUES (?, ?, ?, ?)
-            """,
-            (name, email, subject or None, message)
-        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.contactmessages
+                (fullname, email, subject, message)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (name, email, subject or None, message)
+            )
 
         connection.commit()
 
@@ -53,7 +51,7 @@ def submit_contact_message(name, email, subject, message):
         if connection:
             connection.rollback()
 
-        print("Contact service error:", error)
+        print("Contact service error:", repr(error))
 
         return {
             "success": False,
